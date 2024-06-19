@@ -1,0 +1,21 @@
+[package]
+name = "time-local"
+description = "Make working with local offsets from the [time](https://crates.io/crates/time) crate a little easier."
+authors = ["Mick van Gelderen"]
+repository = "https://github.com/mickvangelderen/time-local"
+homepage = "https://github.com/mickvangelderen/time-local"
+version = "0.3.0"
+edition = "2021"
+keywords = ["date", "time", "calendar", "duration"]
+categories = [
+    "date-and-time",
+    "no-std",
+    "parser-implementations",
+    "value-formatting",
+]
+license = "MIT OR Apache-2.0"
+include = ["src/**/*", "README.md"]
+
+[dependencies]
+# [0.3.18 introduced `time::util::local_offset`](https://github.com/time-rs/time/commit/3df112071931d098ce440def59f2490043d4582d)
+time = { version = "0.3.18", features = ["local-offset"] }
