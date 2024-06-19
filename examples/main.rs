@@ -1,6 +1,3 @@
-Make working with local offsets from the [time](https://crates.io/crates/time) crate a little easier.
-
-```rust
 use time_local::OffsetDateTimeExt;
 
 fn main() {
@@ -17,6 +14,3 @@ fn main() {
 
     println!("{date:?}")
 }
-```
-
-See https://github.com/time-rs/time/issues/688#issue-2346267822 for origins.
