@@ -4,37 +4,45 @@ use time::UtcOffset;
 
 pub trait UtcOffsetExt {
     /// Cached result of [`time::UtcOffset::current_local_offset`].
-    fn cached_local_offset() -> Result<time::UtcOffset, time::error::IndeterminateOffset>;
+    ///
+    /// # Panicks
+    ///
+    /// Panicks if [`crate::init`] has not been called with a succesful return value.
+    fn cached_local_offset() -> time::UtcOffset;
 }
 
+static UTC_OFFSET: OnceLock<time::UtcOffset> = OnceLock::new();
+
 impl UtcOffsetExt for time::UtcOffset {
-    fn cached_local_offset() -> Result<time::UtcOffset, time::error::IndeterminateOffset> {
-        static CACHE: OnceLock<Result<time::UtcOffset, time::error::IndeterminateOffset>> =
-            OnceLock::new();
-        *CACHE.get_or_init(time::UtcOffset::current_local_offset)
+    fn cached_local_offset() -> time::UtcOffset {
+        *UTC_OFFSET.get().unwrap_or_else(|| utc_offset_init_error())
     }
 }
 
 pub trait OffsetDateTimeExt {
-    /// Convenience method that calls [`time::OffsetDateTime::to_offset`] with the return value of
-    /// [`time::UtcOffset::current_local_offset`]. The current local offset is cached upon the first call. This call is
-    /// more likely to succeed before the program spawns threads. Browse the source code of
-    /// [`time::UtcOffset::current_local_offset`] to understand why.
-    fn to_local(self) -> time::Result<time::OffsetDateTime>;
+    /// Convenience method that calls [`time::OffsetDateTime::to_offset`] with the [`time::UtcOffset`] for `self`.
+    fn to_local(self) -> Result<time::OffsetDateTime, time::error::IndeterminateOffset>;
 }
 
 impl OffsetDateTimeExt for time::OffsetDateTime {
-    fn to_local(self) -> time::Result<time::OffsetDateTime> {
-        Ok(self.to_offset(time::UtcOffset::cached_local_offset()?))
+    fn to_local(self) -> Result<time::OffsetDateTime, time::error::IndeterminateOffset> {
+        Ok(self.to_offset(time::UtcOffset::local_offset_at(self)?))
     }
 }
 
-/// Call this function before your program spawns threads. Only necessary if you program spawns threads.
-///
-/// The function [`time::UtcOffset::current_local_offset`] is more likely to succeed before the program spawns threads.
-/// Browse the source code of [`time::UtcOffset::current_local_offset`] to understand why.
-pub fn init() {
-    let _ = UtcOffset::cached_local_offset();
+/// Call this function before your program spawns threads and before you use [`UtcOffsetExt::cached_local_offset`].
+pub fn init() -> Result<(), time::error::IndeterminateOffset> {
+    let utc_offset = UtcOffset::current_local_offset()?;
+    UTC_OFFSET
+        .set(utc_offset)
+        .unwrap_or_else(|_| utc_offset_init_error());
+    Ok(())
+}
+
+fn utc_offset_init_error() -> ! {
+    panic!(
+        "call `time_local::init()` once during application initialization before spawning threads"
+    )
 }
 
 #[cfg(test)]
@@ -68,10 +76,11 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let _guard = UnsoundGuard::new();
-        init();
-        let offset = time::UtcOffset::cached_local_offset().unwrap();
+        let guard = UnsoundGuard::new();
+        init().unwrap();
+        drop(guard);
+        let offset = time::UtcOffset::cached_local_offset();
         let date = time::OffsetDateTime::from_unix_timestamp(1718785511).unwrap();
-        assert_eq!(date.to_local().unwrap().offset(), offset);
+        assert_eq!(date.to_offset(offset).offset(), offset);
     }
 }
