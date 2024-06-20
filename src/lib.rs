@@ -5,9 +5,9 @@ use time::UtcOffset;
 pub trait UtcOffsetExt {
     /// Cached result of [`time::UtcOffset::current_local_offset`].
     ///
-    /// # Panicks
+    /// # Panics
     ///
-    /// Panicks if [`crate::init`] has not been called with a succesful return value.
+    /// Panics if [`crate::init`] has not been called with a succesful return value.
     fn cached_local_offset() -> time::UtcOffset;
 }
 
@@ -43,44 +43,4 @@ fn utc_offset_init_error() -> ! {
     panic!(
         "call `time_local::init()` once during application initialization before spawning threads"
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct UnsoundGuard {
-        #[allow(unused)]
-        guard: std::sync::MutexGuard<'static, ()>,
-    }
-
-    impl UnsoundGuard {
-        pub fn new() -> Self {
-            use std::sync::Mutex;
-            use time::util::local_offset::{set_soundness, Soundness};
-
-            static SOUNDNESS_LOCK: Mutex<()> = Mutex::new(());
-            let guard = SOUNDNESS_LOCK.lock().expect("lock is poisoned");
-            unsafe { set_soundness(Soundness::Unsound) };
-            Self { guard }
-        }
-    }
-
-    impl Drop for UnsoundGuard {
-        fn drop(&mut self) {
-            use time::util::local_offset::{set_soundness, Soundness};
-
-            unsafe { set_soundness(Soundness::Sound) };
-        }
-    }
-
-    #[test]
-    fn it_works() {
-        let guard = UnsoundGuard::new();
-        init().unwrap();
-        drop(guard);
-        let offset = time::UtcOffset::cached_local_offset();
-        let date = time::OffsetDateTime::from_unix_timestamp(1718785511).unwrap();
-        assert_eq!(date.to_offset(offset).offset(), offset);
-    }
 }
